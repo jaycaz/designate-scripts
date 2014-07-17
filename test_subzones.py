@@ -1,7 +1,9 @@
 # Jordan Cazamias
 # Sub Zones Performance Testing
 
+import sys
 import timeit as t
+
 import zones as z
 
 def test_create_zones(numzones, tenant=None, host=None):
@@ -27,4 +29,9 @@ def run_create_tests(zonesnums):
         print " - {0} zones: {1}s".format(numzones, time)
 
 if __name__ == '__main__':
-    z.create_zones(20)
+
+    kwargs = {}
+    if len(sys.argv) > 1:
+        kwargs['host'] = sys.argv[1]
+
+    z.create_zones(10, **kwargs)
