@@ -48,6 +48,23 @@ headers = {
     'X-Roles': 'admin'
 }
 
+def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
+    quota_url = "{0}/v2/quotas/{1}".format(host, tenant)
+    data = {
+        "quota": {
+        "zones": newquota
+        }
+    }
+
+    r = requests.patch(quota_url, data=json.dumps(data), headers=headers)
+    if r.status_code == 200:
+        print "Max zones quota updated to {0}".format(newquota)
+    else:
+        print "Quota update failed."
+        print "\n** Error code {0}: {1}".format(
+            r.status_code, r.text)
+        return
+
 def get_num_zones(tenant=TENANT_ID, host=HOST):
     zone_url = "{0}/v2/zones".format(host)
     r = requests.get(zone_url, headers=headers)
