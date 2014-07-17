@@ -77,9 +77,7 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
     j = r.json()
     numzones = len(j['zones'])
 
-    print "Number of zones for tenant {0}: {1}".format(
-        tenant, numzones
-    )
+    return numzones
 
 # Deletes a certain number of zones, or all zones
 def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
@@ -121,7 +119,7 @@ def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
     print "\n"
     print "> Successes: {0} of {1}".format(successes, numdelete)
     print "> Tenant {0} now has {1} zones".format(
-        tenant, len(j['zones']) - successes)
+        tenant, get_num_zones(tenant, host))
 
 # Creates a certain number of randomly named zones/subzones
 def create_zones(numzones, tenant=TENANT_ID, host=HOST):
@@ -185,7 +183,7 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
         print "* - {0} order zones created: {1}".format(
             _ordinal(depth), count
         )
-    print "* Tenant {0} now has {1} zones".format(tenant, len(zones))
+    print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
 
 def _zone_depth(zonename):
     return zonename.count(".")
