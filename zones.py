@@ -88,7 +88,7 @@ def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
 
     for i in range(numdelete):
         z = sorted_zones[i]
-        r = requests.delete("http://192.168.33.8:9001/v2/zones/" + z['id'],
+        r = requests.delete("{0}/{1}".format(zone_url, z['id']),
                             headers=headers)
 
         if r.status_code == 204:
