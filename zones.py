@@ -128,6 +128,7 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
     zone_url = "{0}/v2/zones".format(host)
     print "Generating {0} zones...".format(numzones)
 
+    # Retrieve list of existing zones
     r = requests.get(zone_url, headers=headers)
     if r.status_code != 200:
         print "\n** Error code {0}: {1}".format(
@@ -140,23 +141,23 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
 
     depthcounts = {}
 
+    # Generate new zone name
+    # Add PID so multiple processes can add zones w/o collisions
     for zonenum in range(numzones):
-        newzone = "{0}.{1}".format(
+        newzone = "{0}.{1}.{2}".format(
             random.choice(words),
-            random.choice(tlds)
+            os.getpid(),
+            random.choice(tlds),
         )
 
         while newzone in zones:
-            # Make newzone a subzone of itself instead
+            # Collision: make a random subzone of newzone and check again
             newzone = "{0}.{1}".format(random.choice(words), newzone)
-            #print "{0}: Creating subzone '{1}'".format(zonenum, newzone)
-
-        newzone_with_pid = "{0}-{1}".format(os.getpid(), newzone)
 
         # Add zone
         data = {
             "zone": {
-                "name": newzone_with_pid,
+                "name": newzone,
                 "email": "host@example.com"
             }
         }
@@ -177,13 +178,14 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
         sys.stdout.flush()
 
     successes = sum([v for v in depthcounts.values()])
-    print "\n> Successes: {0} of {1}".format(successes, numzones)
-    print "> Depth Report:"
+    print "\n\n*** Process {0}: Zone creation successful ***".format(os.getpid())
+    print "* Successes: {0} of {1}".format(successes, numzones)
+    print "* Depth Report:"
     for depth, count in depthcounts.iteritems():
-        print "> - {0} order zones created: {1}".format(
+        print "* - {0} order zones created: {1}".format(
             _ordinal(depth), count
         )
-    print "> Tenant {0} now has {1} zones".format(tenant, len(zones))
+    print "* Tenant {0} now has {1} zones".format(tenant, len(zones))
 
 def _zone_depth(zonename):
     return zonename.count(".")
