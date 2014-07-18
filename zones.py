@@ -2,9 +2,11 @@
 # Zone Generator
 
 import json
+from multiprocessing import Process
 import os
 import random
 import sys
+import time
 
 
 import requests
@@ -80,7 +82,7 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
     return numzones
 
 # Deletes a certain number of zones, or all zones
-def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
+def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
     zone_url = "{0}/v2/zones".format(host)
     r = requests.get(zone_url, headers=headers)
     j = r.json()
@@ -122,9 +124,42 @@ def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
         tenant, get_num_zones(tenant, host))
 
 # Creates a certain number of randomly named zones/subzones
-def create_zones(numzones, tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
+# Supports multiple processes which operate in their own namespace
+def create_zones(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
     print "Generating {0} zones...".format(numzones)
+
+    procs = []
+    for i in range(numprocs):
+        # Delegate zones to proccess
+        zones_to_delegate = numzones / numprocs
+        if i == numprocs - 1:
+            zones_to_delegate += numzones % numprocs
+
+        # Spawn process
+        p = Process(target=_create_zones_proc,
+                    args=(zones_to_delegate, tenant, host))
+        procs.append(p)
+        p.start()
+        if numprocs != 1:
+            print "Spawned process {0}".format(p.pid)
+
+    # Wait until processes are finished
+    procs_alive = True
+    while procs_alive:
+        for p in procs:
+            if p.is_alive():
+                time.sleep(0.05)
+                break
+        else:
+            procs_alive = False
+
+    print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
+
+
+
+# Function for individual Create Zones process
+def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
+    zone_url = "{0}/v2/zones".format(host)
 
     # Retrieve list of existing zones
     r = requests.get(zone_url, headers=headers)
@@ -183,7 +218,6 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
         print "* - {0} order zones created: {1}".format(
             _ordinal(depth), count
         )
-    print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
 
 def _zone_depth(zonename):
     return zonename.count(".")
