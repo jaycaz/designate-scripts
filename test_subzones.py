@@ -26,6 +26,7 @@ def run_create_tests(zonesnums, **kwargs):
         testtime = test_create_zones(num, **kwargs)
         results[num] = testtime
         z.delete_zones(**kwargs)
+        print "Test completed in {0} s".format(testtime)
     print "***CREATE TEST RESULTS:***"
     for numzones, time in results.iteritems():
         print " - {0} zones: {1}s".format(numzones, time)
