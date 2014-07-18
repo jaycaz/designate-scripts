@@ -19,6 +19,7 @@ def test_create_zones(numzones, numprocs=None, tenant=None, host=None):
 
 def run_create_tests(zonesnums, **kwargs):
     print "*** RUNNING CREATE TEST WITH AMOUNTS {0}... ***".format(zonesnums)
+    z.delete_zones(**kwargs)
     results = {}
     for num in zonesnums:
         print "*** TESTING WITH {0} ZONES ***".format(num)
