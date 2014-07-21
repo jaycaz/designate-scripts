@@ -105,8 +105,7 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
 
     for i in range(numdelete):
         z = sorted_zones[i]
-        r = requests.delete("{0}/{1}".format(zone_url, z['id']),
-                            headers=headers)
+        r = delete_zone(z['id'])
 
         if r.status_code == 204:
             sys.stdout.write("\rDeleted zone {0} of {1}".format(
@@ -122,6 +121,14 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
     print "> Successes: {0} of {1}".format(successes, numdelete)
     print "> Tenant {0} now has {1} zones".format(
         tenant, get_num_zones(tenant, host))
+
+# Deletes a specific zone
+def delete_zone(zoneid, tenant=TENANT_ID, host=HOST):
+    zone_url = "{0}/v2/zones".format(host)
+    r = requests.delete("{0}/{1}".format(zone_url, zoneid),
+                        headers=headers)
+    return r
+
 
 # Creates a certain number of randomly named zones/subzones
 # Supports multiple processes which operate in their own namespace
@@ -155,9 +162,39 @@ def create_zones(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
 
     print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
 
+# Create specific zone
+def create_zone(zone_name, zone_email="host@example.com",
+                tenant=TENANT_ID, host=HOST):
+    zone_url = "{0}/v2/zones".format(host)
+    data = {
+        "zone": {
+            "name": zone_name,
+            "email": zone_email
+        }
+    }
+    r = requests.post(zone_url, data=json.dumps(data), headers=headers)
+    return r
+
+def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
+    zone_url = "{0}/v2/zones".format(host)
+    r = requests.get("{0}?name={1}".format(zone_url, zone_name),
+                     headers=headers)
+
+    if r.status_code != 200:
+        print "\n** Error code {0}: {1}".format(
+            r.status_code, r.text)
+        return None
+
+    zones = r.json()['zones']
+
+    if len(zones) == 0:
+        return None
+
+    zone = zones[0]
+    return zone['id']
 
 
-# Function for individual Create Zones process
+# Function for individual create_zones process
 def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
     zone_url = "{0}/v2/zones".format(host)
 
@@ -188,13 +225,7 @@ def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
             newzone = "{0}.{1}".format(random.choice(words), newzone)
 
         # Add zone
-        data = {
-            "zone": {
-                "name": newzone,
-                "email": "host@example.com"
-            }
-        }
-        r = requests.post(zone_url, data=json.dumps(data), headers=headers)
+        r = create_zone(newzone)
 
         # Check response
         if r.status_code != 201:
