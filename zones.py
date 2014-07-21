@@ -5,6 +5,7 @@ import json
 from multiprocessing import Process
 import os
 import random
+import string
 import sys
 import time
 
@@ -43,15 +44,12 @@ words = ['adult', 'aeroplane', 'air', 'airforce', 'airport', 'album', 'alphabet'
          'tongue', 'torch', 'torpedo', 'train', 'treadmill', 'triangle', 'tunnel',
          'typewriter', 'umbrella', 'vacuum', 'vampire', 'videotape', 'vulture', 'water',
          'weapon', 'web', 'wheelchair', 'window', 'woman', 'worm']
-headers = {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    'X-Auth-Project-ID': TENANT_ID,
-    'X-Roles': 'admin'
-}
+TENANTS = list(string.ascii_uppercase)
 
 def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
-    quota_url = "{0}/v2/quotas/{1}".format(host, tenant)
+    quota_url, headers = _get_request_data("/v2/quotas/" + tenant,
+                                           tenant=tenant,
+                                           host=host)
     data = {
         "quota": {
         "zones": newquota
@@ -68,7 +66,9 @@ def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
         return
 
 def get_num_zones(tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
+    zone_url, headers = _get_request_data("/v2/zones",
+                                          tenant=tenant,
+                                          host=host)
     r = requests.get(zone_url, headers=headers)
 
     if r.status_code != 200:
@@ -81,9 +81,18 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
 
     return numzones
 
+# Deletes all zones for tenants in tenants list
+def delete_zones_multitenant(tenants=TENANTS, host=HOST):
+    for tenant in tenants:
+        if get_num_zones(tenant, host=HOST) != 0:
+            delete_zones(tenant=tenant, host=host)
+
+
 # Deletes a certain number of zones, or all zones
 def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
+    zone_url, headers = _get_request_data("/v2/zones",
+                                          tenant=tenant,
+                                          host=host)
     r = requests.get(zone_url, headers=headers)
     j = r.json()
     zones = j['zones']
@@ -105,7 +114,7 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
 
     for i in range(numdelete):
         z = sorted_zones[i]
-        r = delete_zone(z['id'])
+        r = delete_zone(z['id'], tenant=tenant, host=HOST)
 
         if r.status_code == 204:
             sys.stdout.write("\rDeleted zone {0} of {1}".format(
@@ -124,15 +133,31 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
 
 # Deletes a specific zone
 def delete_zone(zoneid, tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
-    r = requests.delete("{0}/{1}".format(zone_url, zoneid),
-                        headers=headers)
+    zone_url, headers = _get_request_data("/v2/zones/" + zoneid,
+                                          tenant=tenant,
+                                          host=host)
+    r = requests.delete(zone_url, headers=headers)
     return r
+
+# Create zones, randomly distributed among a list of tenant IDs
+def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
+    tenantcounts = {}
+    for i in range(numzones):
+        randtenant = random.choice(tenants)
+        if randtenant in tenantcounts:
+            tenantcounts[randtenant] += 1
+        else:
+            tenantcounts[randtenant] = 1
+
+    print "Creating zones for tenants..."
+    for tenant, num in tenantcounts.iteritems():
+        print "Tenant '{0}': {1} zones".format(tenant, num)
+        create_zones(num, tenant=tenant, host=HOST)
 
 
 # Creates a certain number of randomly named zones/subzones
 # Supports multiple processes which operate in their own namespace
-def create_zones(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
+def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
     print "Generating {0} zones...".format(numzones)
 
     procs = []
@@ -143,7 +168,7 @@ def create_zones(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
             zones_to_delegate += numzones % numprocs
 
         # Spawn process
-        p = Process(target=_create_zones_proc,
+        p = Process(target=create_zones,
                     args=(zones_to_delegate, tenant, host))
         procs.append(p)
         p.start()
@@ -165,7 +190,9 @@ def create_zones(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
 # Create specific zone
 def create_zone(zone_name, zone_email="host@example.com",
                 tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
+    zone_url, headers = _get_request_data("/v2/zones",
+                                          tenant=tenant,
+                                          host=host)
     data = {
         "zone": {
             "name": zone_name,
@@ -176,9 +203,10 @@ def create_zone(zone_name, zone_email="host@example.com",
     return r
 
 def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
-    r = requests.get("{0}?name={1}".format(zone_url, zone_name),
-                     headers=headers)
+    zone_url, headers = _get_request_data("/v2/zones?name=" + zone_name,
+                                          tenant=tenant,
+                                          host=host)
+    r = requests.get(zone_url, headers=headers)
 
     if r.status_code != 200:
         print "\n** Error code {0}: {1}".format(
@@ -195,8 +223,10 @@ def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
 
 
 # Function for individual create_zones process
-def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
-    zone_url = "{0}/v2/zones".format(host)
+def create_zones(numzones, tenant=TENANT_ID, host=HOST):
+    zone_url, headers = _get_request_data("/v2/zones",
+                                          tenant=tenant,
+                                          host=host)
 
     # Retrieve list of existing zones
     r = requests.get(zone_url, headers=headers)
@@ -213,9 +243,11 @@ def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
 
     # Generate new zone name
     # Add PID so multiple processes can add zones w/o collisions
+    # Add Tenant ID so multiple tenants can add zones w/o collisions
     for zonenum in range(numzones):
-        newzone = "{0}.{1}.{2}".format(
+        newzone = "{0}.{1}.{2}.{3}".format(
             random.choice(words),
+            tenant,
             os.getpid(),
             random.choice(tlds),
         )
@@ -225,7 +257,7 @@ def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
             newzone = "{0}.{1}".format(random.choice(words), newzone)
 
         # Add zone
-        r = create_zone(newzone)
+        r = create_zone(newzone, tenant=tenant, host=host)
 
         # Check response
         if r.status_code != 201:
@@ -241,6 +273,7 @@ def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
         sys.stdout.write("\rCreated zone {0} of {1}".format(zonenum+1, numzones))
         sys.stdout.flush()
 
+
     successes = sum([v for v in depthcounts.values()])
     print "\n\n*** Process {0}: Zone creation successful ***".format(os.getpid())
     print "* Successes: {0} of {1}".format(successes, numzones)
@@ -249,6 +282,18 @@ def _create_zones_proc(numzones, tenant=TENANT_ID, host=HOST):
         print "* - {0} order zones created: {1}".format(
             _ordinal(depth), count
         )
+
+def _get_request_data(url="", host=HOST, tenant=TENANT_ID):
+    full_url = "{0}{1}".format(host, url)
+
+    headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Auth-Project-ID': tenant,
+        'X-Roles': 'admin'
+    }
+
+    return full_url, headers
 
 def _zone_depth(zonename):
     return zonename.count(".")
