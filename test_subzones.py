@@ -22,8 +22,11 @@ def test_create_zones(numzones, **kwargs):
 
 # Creates <basezones> zones as a base, then
 # times the creation of an additional zone
-def test_create_another_zone(basezones, numtests=100, **kwargs):
+def test_create_another_zone(basezones=None, numtests=100, **kwargs):
     curr_num_zones = z.get_num_zones(**kwargs)
+    if basezones is None:
+        basezones = curr_num_zones
+
     zones_diff = curr_num_zones - basezones
 
     # Change number of zones to match <basezones>
