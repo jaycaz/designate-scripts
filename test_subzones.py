@@ -7,6 +7,20 @@ import timeit as t
 
 import zones as z
 
+def run_create_tests(zonesnums, **kwargs):
+    print "*** RUNNING CREATE TEST WITH AMOUNTS {0}... ***".format(zonesnums)
+    z.delete_zones(**kwargs)
+    results = {}
+    for num in zonesnums:
+        print "*** TESTING WITH {0} ZONES ***".format(num)
+        testtime = test_create_zones(num, **kwargs)
+        results[num] = testtime
+        print "Test completed in {0} s".format(testtime)
+        z.delete_zones(**kwargs)
+    print "***CREATE TEST RESULTS:***"
+    for numzones, time in results.iteritems():
+        print " - {0} zones: {1}s".format(numzones, time)
+
 # Creates <numzones> zones and returns the total creation time
 def test_create_zones(numzones, **kwargs):
     setup = "import zones as z"
@@ -19,6 +33,23 @@ def test_create_zones(numzones, **kwargs):
     #    (", host='{0}'".format(kwargs['host']) if 'host' in kwargs else ""))
     timer = t.Timer(func, setup)
     return timer.timeit(number=1)
+
+def run_create_another_tests(zonesnums, **kwargs):
+    print "*** RUNNING CREATE_ANOTHER TEST WITH AMOUNTS {0}... ***".\
+        format(zonesnums)
+    results = {}
+    for num in zonesnums:
+        print "*** TESTING WITH {0} ZONES ***".format(num)
+        times = test_create_another_zone(basezones=num, numtests=5, **kwargs)
+        results[num] = times
+        for time in times:
+            print time
+    print "***CREATE TEST RESULTS:***"
+    for numzones, times in results.iteritems():
+        print " - {0} zones: {1}s".format(numzones, time_stats(times))
+
+    return results
+
 
 # Creates <basezones> zones as a base, then
 # times the creation of an additional zone
@@ -60,15 +91,21 @@ def test_create_another_zone(basezones=None, numtests=100, **kwargs):
             z.delete_zone(id, **kwargs)
     print ""
 
+    return times
+
+def time_stats(times):
+    timestr = ""
+
+    # Print statistics
     mintime = min(times)
     avgtime = (sum(times) / len(times))
     maxtime = max(times)
 
-    print "Min time: {0}s".format(min(times))
-    print "Avg. time: {0}s".format(sum(times) / len(times))
-    print "Max time: {0}s".format(max(times))
+    timestr += "(min={0}s, ".format(min(times))
+    timestr += "avg={0}s, ".format(sum(times) / len(times))
+    timestr += "max={0}s)".format(max(times))
 
-    return (mintime, avgtime, maxtime)
+    return timestr
 
 def _kwargs_as_str(kwargs):
     # Inject kwargs key-value pairs in func string
@@ -76,20 +113,6 @@ def _kwargs_as_str(kwargs):
                       key,value in kwargs.iteritems())
 
     return kwstr
-
-def run_create_tests(zonesnums, **kwargs):
-    print "*** RUNNING CREATE TEST WITH AMOUNTS {0}... ***".format(zonesnums)
-    z.delete_zones(**kwargs)
-    results = {}
-    for num in zonesnums:
-        print "*** TESTING WITH {0} ZONES ***".format(num)
-        testtime = test_create_zones(num, **kwargs)
-        results[num] = testtime
-        print "Test completed in {0} s".format(testtime)
-        z.delete_zones(**kwargs)
-    print "***CREATE TEST RESULTS:***"
-    for numzones, time in results.iteritems():
-        print " - {0} zones: {1}s".format(numzones, time)
 
 if __name__ == '__main__':
 
@@ -108,6 +131,6 @@ if __name__ == '__main__':
 
     print vars(args)
 
-    run_create_tests(**vars(args))
+    run_create_tests(test_create_zones, **vars(args))
 
 
