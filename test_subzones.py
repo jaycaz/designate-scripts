@@ -72,7 +72,7 @@ def test_create_another_zone(basezones=None, numtests=100, **kwargs):
 
 def _kwargs_as_str(kwargs):
     # Inject kwargs key-value pairs in func string
-    kwstr = ', '.join("{0}={1}".format(key, value) for
+    kwstr = ', '.join("{0}={1}".format(key, repr(value)) for
                       key,value in kwargs.iteritems())
 
     return kwstr
