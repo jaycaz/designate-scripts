@@ -66,7 +66,7 @@ def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
         return
 
 def get_num_zones(tenant=TENANT_ID, host=HOST):
-    zone_url, headers = _get_request_data("/v2/zones",
+    zone_url, headers = _get_request_data("/v1/reports/counts",
                                           tenant=tenant,
                                           host=host)
     r = requests.get(zone_url, headers=headers)
@@ -77,7 +77,7 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
         return
 
     j = r.json()
-    numzones = len(j['zones'])
+    numzones = j['domains']
 
     return numzones
 
