@@ -46,6 +46,24 @@ words = ['adult', 'aeroplane', 'air', 'airforce', 'airport', 'album', 'alphabet'
          'weapon', 'web', 'wheelchair', 'window', 'woman', 'worm']
 TENANTS = list(string.ascii_uppercase)
 
+def create_server(servername="ns.servers.com.", host=HOST):
+    server_url, headers = _get_request_data("/v1/servers",
+                                            tenant="",
+                                            host=host)
+    data = {
+        "name": servername
+    }
+
+    r = requests.patch(server_url, data=json.dumps(data), headers=headers)
+    if r.status_code == 200:
+        print "Server {0} successfully created".format(servername)
+    else:
+        print "Server creation failed."
+        print "\n** Error code {0}: {1}".format(
+            r.status_code, r.text)
+        return
+
+
 def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
     quota_url, headers = _get_request_data("/v2/quotas/" + tenant,
                                            tenant=tenant,
