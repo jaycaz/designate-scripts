@@ -102,7 +102,7 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
 # Deletes all zones for tenants in tenants list
 def delete_zones_multitenant(tenants=TENANTS, host=HOST):
     for tenant in tenants:
-        if get_num_zones(tenant, host=HOST) != 0:
+        if get_num_zones(tenant, host=host) != 0:
             delete_zones(tenant=tenant, host=host)
 
 
@@ -132,7 +132,7 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
 
     for i in range(numdelete):
         z = sorted_zones[i]
-        r = delete_zone(z['id'], tenant=tenant, host=HOST)
+        r = delete_zone(z['id'], tenant=tenant, host=host)
 
         if r.status_code == 204:
             sys.stdout.write("\rDeleted zone {0} of {1}".format(
@@ -170,7 +170,7 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
     print "Creating zones for tenants..."
     for tenant, num in tenantcounts.iteritems():
         print "Tenant '{0}': {1} zones".format(tenant, num)
-        create_zones(num, tenant=tenant, host=HOST)
+        create_zones(num, tenant=tenant, host=host)
 
 
 # Creates a certain number of randomly named zones/subzones
