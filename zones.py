@@ -65,7 +65,7 @@ def create_server(servername="ns.servers.com.", host=HOST):
 
 
 def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
-    quota_url, headers = _get_request_data("/v2/quotas/" + tenant,
+    quota_url, headers = _get_request_data("/v2/quotas/{0}".format(tenant),
                                            tenant=tenant,
                                            host=host)
     data = {
@@ -151,7 +151,7 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
 
 # Deletes a specific zone
 def delete_zone(zoneid, tenant=TENANT_ID, host=HOST):
-    zone_url, headers = _get_request_data("/v2/zones/" + zoneid,
+    zone_url, headers = _get_request_data("/v2/zones/{0}".format(zoneid),
                                           tenant=tenant,
                                           host=host)
     r = requests.delete(zone_url, headers=headers)
@@ -221,7 +221,7 @@ def create_zone(zone_name, zone_email="host@example.com",
     return r
 
 def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
-    zone_url, headers = _get_request_data("/v2/zones?name=" + zone_name,
+    zone_url, headers = _get_request_data("/v2/zones?name={0}".format(zone_name),
                                           tenant=tenant,
                                           host=host)
     r = requests.get(zone_url, headers=headers)
