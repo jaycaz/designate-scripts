@@ -44,7 +44,7 @@ words = ['adult', 'aeroplane', 'air', 'airforce', 'airport', 'album', 'alphabet'
          'tongue', 'torch', 'torpedo', 'train', 'treadmill', 'triangle', 'tunnel',
          'typewriter', 'umbrella', 'vacuum', 'vampire', 'videotape', 'vulture', 'water',
          'weapon', 'web', 'wheelchair', 'window', 'woman', 'worm']
-TENANTS = list(string.ascii_uppercase)
+TENANTS = range(50)
 
 def create_server(servername="ns.servers.com.", host=HOST):
     server_url, headers = _get_request_data("/v1/servers",
