@@ -1,5 +1,7 @@
 # Jordan Cazamias
-# Zone Generator
+# Rackspace Cloud DNS
+
+# zones.py: Zone utility functions
 
 import json
 from multiprocessing import Process
@@ -10,9 +12,6 @@ import time
 
 
 import requests
-
-HOST = "http://192.168.33.8:9001"
-TENANT_ID = 'A'
 
 tlds = ['com.', 'org.', 'net.', 'edu.']
 words = ['adult', 'aeroplane', 'air', 'airforce', 'airport', 'album', 'alphabet',
@@ -43,7 +42,11 @@ words = ['adult', 'aeroplane', 'air', 'airforce', 'airport', 'album', 'alphabet'
          'tongue', 'torch', 'torpedo', 'train', 'treadmill', 'triangle', 'tunnel',
          'typewriter', 'umbrella', 'vacuum', 'vampire', 'videotape', 'vulture', 'water',
          'weapon', 'web', 'wheelchair', 'window', 'woman', 'worm']
+
 TENANTS = [str(n) for n in range(50)]
+TENANT = TENANTS[0]
+HOST = "http://192.168.33.8:9001"
+
 
 def create_server(servername="ns.servers.com.", host=HOST):
     """
@@ -67,7 +70,7 @@ def create_server(servername="ns.servers.com.", host=HOST):
         return
 
 
-def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
+def change_zones_quota(newquota, tenant=TENANT, host=HOST):
     """
     Changes quota for specified tenant on host
     :param newquota: New maximum number of zones the tenant should have
@@ -90,7 +93,8 @@ def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
             r.status_code, r.text)
         return
 
-def get_num_zones(tenant=TENANT_ID, host=HOST):
+
+def get_num_zones(tenant=TENANT, host=HOST):
     """
     Retrieves the number of zones for a given tenant
     """
@@ -109,6 +113,7 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
 
     return numzones
 
+
 def delete_zones_multitenant(tenants=TENANTS, host=HOST):
     """
     Deletes all zones for the given list of tenants
@@ -118,7 +123,7 @@ def delete_zones_multitenant(tenants=TENANTS, host=HOST):
             delete_zones(tenant=tenant, host=host)
 
 
-def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
+def delete_zones(numdelete=None, tenant=TENANT, host=HOST):
     """
     Deletes a number of zones, or all zones, for a specified tenant.
     :param numdelete: number of zones to delete. If omitted, deletes all zones.
@@ -164,7 +169,8 @@ def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
     print "> Tenant {0} now has {1} zones".format(
         tenant, get_num_zones(tenant, host))
 
-def delete_zone(zoneid, tenant=TENANT_ID, host=HOST):
+
+def delete_zone(zoneid, tenant=TENANT, host=HOST):
     """
     Deletes a specific zone under the given tenant
     :param zoneid: ID of the zone to be deleted
@@ -174,6 +180,7 @@ def delete_zone(zoneid, tenant=TENANT_ID, host=HOST):
                                           host=host)
     r = requests.delete(zone_url, headers=headers)
     return r
+
 
 def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
     """
@@ -197,7 +204,7 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
 
 # Creates a certain number of randomly named zones/subzones
 # Supports multiple processes which operate in their own namespace
-def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
+def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT, host=HOST):
     """
     Creates zones, with the option to split zone creation among multiple processes
     :param numzones: Number of zones to create
@@ -232,8 +239,9 @@ def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
 
     print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
 
+
 def create_zone(zone_name, zone_email="host@example.com",
-                tenant=TENANT_ID, host=HOST):
+                tenant=TENANT, host=HOST):
     """
     Create a zone with the specified zone name
     :param zone_name: Name of zone to create
@@ -251,7 +259,8 @@ def create_zone(zone_name, zone_email="host@example.com",
     r = requests.post(zone_url, data=json.dumps(data), headers=headers)
     return r
 
-def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
+
+def get_zone_id(zone_name, tenant=TENANT, host=HOST):
     """
     Retrieve ID for the zone with the specified name
     :param zone_name: Name of zone to search for
@@ -275,7 +284,7 @@ def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
     return zone['id']
 
 
-def create_zones(numzones, tenant=TENANT_ID, host=HOST):
+def create_zones(numzones, tenant=TENANT, host=HOST):
     """
     Normal zone creation function
     :param numzones: Number of zones to create
@@ -302,10 +311,10 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
     # Add PID so multiple processes can add zones w/o collisions
     # Add Tenant ID so multiple tenants can add zones w/o collisions
     for zonenum in range(numzones):
-        newzone = "{0}.{1}.{2}.{3}".format(
+        newzone = "{0}-{1}-{2}.{3}".format(
             random.choice(words),
-            tenant,
             os.getpid(),
+            tenant,
             random.choice(tlds),
         )
 
@@ -330,7 +339,6 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
         sys.stdout.write("\rCreated zone {0} of {1}".format(zonenum+1, numzones))
         sys.stdout.flush()
 
-
     successes = sum([v for v in depthcounts.values()])
     print "\n\n*** Process {0}: Zone creation successful ***".format(os.getpid())
     print "* Successes: {0} of {1}".format(successes, numzones)
@@ -340,7 +348,8 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
             _ordinal(depth), count
         )
 
-def _get_request_data(url="", host=HOST, tenant=TENANT_ID):
+
+def _get_request_data(url="", host=HOST, tenant=TENANT):
     """
     Retrieve the necessary data for making request calls
     :param url: Everything after the port number.
@@ -358,9 +367,13 @@ def _get_request_data(url="", host=HOST, tenant=TENANT_ID):
 
     return full_url, headers
 
+
 def _zone_depth(zonename):
     return zonename.count(".")
 
-def _ordinal(n):
-    return "%d%s" % (n,"tsnrhtdd"[(n/10%10!=1)*(n%10<4)*n%10::4])
+
+def _ordinal(num):
+    return "%d%s" % (num, "tsnrhtdd"[((num / 10 % 10) != 1) *
+                                     ((num % 10) < 4) *
+                                     num % 10::4])
 

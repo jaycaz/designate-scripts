@@ -1,11 +1,11 @@
 # Jordan Cazamias
 # Sub Zones Performance Testing
 
-import argparse
 import sys
 import timeit as t
 
 import zones as z
+
 
 def run_create_tests(zonesnums, **kwargs):
     """
@@ -29,6 +29,7 @@ def run_create_tests(zonesnums, **kwargs):
 
     return results
 
+
 def test_create_zones(numzones, **kwargs):
     """
     Calculates the amount of time to create a number of zones
@@ -42,6 +43,7 @@ def test_create_zones(numzones, **kwargs):
         numzones, _kwargs_as_str(kwargs))
     timer = t.Timer(func, setup)
     return timer.timeit(number=1)
+
 
 def run_create_another_tests(zonesnums, **kwargs):
     """
@@ -107,12 +109,13 @@ def test_create_another_zone(basezones=None, numtests=100, **kwargs):
         times.append(time)
 
         # Delete created zone
-        id = z.get_zone_id(zone_name, **kwargs)
-        if id:
-            z.delete_zone(id, **kwargs)
+        zone_id = z.get_zone_id(zone_name, **kwargs)
+        if zone_id:
+            z.delete_zone(zone_id, **kwargs)
     print ""
 
     return times
+
 
 def time_stats(times):
     """
@@ -120,23 +123,20 @@ def time_stats(times):
     """
     timestr = ""
 
-    # Print statistics
-    mintime = min(times)
-    avgtime = (sum(times) / len(times))
-    maxtime = max(times)
-
+    # Compile statistics
     timestr += "(min={0}s, ".format(min(times))
     timestr += "avg={0}s, ".format(sum(times) / len(times))
     timestr += "max={0}s)".format(max(times))
 
     return timestr
 
+
 def _kwargs_as_str(kwargs):
     """
     Inject kwargs key-value pairs in string form, to create func strings
     """
     kwstr = ', '.join("{0}={1}".format(key, repr(value)) for
-                      key,value in kwargs.iteritems())
+                      key, value in kwargs.iteritems())
 
     return kwstr
 
