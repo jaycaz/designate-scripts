@@ -139,4 +139,3 @@ def _kwargs_as_str(kwargs):
                       key, value in kwargs.iteritems())
 
     return kwstr
-

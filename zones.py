@@ -5,6 +5,7 @@
 
 import json
 from multiprocessing import Process
+from multiprocessing import Queue
 import os
 import random
 import sys
@@ -65,8 +66,7 @@ def create_server(servername="ns.servers.com.", host=HOST):
         print "Server {0} successfully created".format(servername)
     else:
         print "Server creation failed."
-        print "\n** Error code {0}: {1}".format(
-            r.status_code, r.text)
+        _print_error(r.status_code, r.text)
         return
 
 
@@ -86,11 +86,11 @@ def change_zones_quota(newquota, tenant=TENANT, host=HOST):
 
     r = requests.patch(quota_url, data=json.dumps(data), headers=headers)
     if r.status_code == 200:
-        print "Max zones quota updated to {0}".format(newquota)
+        print "Max zones quota for tenant '{0}' updated to {1}".format(
+            tenant, newquota)
     else:
         print "Quota update failed."
-        print "\n** Error code {0}: {1}".format(
-            r.status_code, r.text)
+
         return
 
 
@@ -104,8 +104,7 @@ def get_num_zones(tenant=TENANT, host=HOST):
     r = requests.get(zone_url, headers=headers)
 
     if r.status_code != 200:
-        print "\n** Error code {0}: {1}".format(
-            r.status_code, r.text)
+        _print_error(r.status_code, r.text)
         return
 
     j = r.json()
@@ -147,7 +146,7 @@ def delete_zones(numdelete=None, tenant=TENANT, host=HOST):
     else:
         numdelete = min(numdelete, len(zones))
 
-    print "Deleting {0} zones...\n".format(numdelete),
+    print "Deleting {0} zones...".format(numdelete),
     successes = 0
 
     for i in range(numdelete):
@@ -161,12 +160,10 @@ def delete_zones(numdelete=None, tenant=TENANT, host=HOST):
             sys.stdout.flush()
             successes += 1
         else:
-            print "\n** Error code {0}: {1}".format(
-                r.status_code, r.text)
+            _print_error(r.status_code, r.text)
 
-    print "\n"
-    print "> Successes: {0} of {1}".format(successes, numdelete)
-    print "> Tenant {0} now has {1} zones".format(
+    print "* Successes: {0} out of {1}".format(successes, numdelete)
+    print "* Tenant {0} now has {1} zones\n".format(
         tenant, get_num_zones(tenant, host))
 
 
@@ -199,12 +196,12 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
     print "Creating zones for tenants..."
     for tenant, num in tenantcounts.iteritems():
         print "Tenant '{0}': creating {1} zones".format(tenant, num)
-        create_zones(num, tenant=tenant, host=host)
+        _create_zones_proc(num, tenant=tenant, host=host)
 
 
 # Creates a certain number of randomly named zones/subzones
 # Supports multiple processes which operate in their own namespace
-def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT, host=HOST):
+def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
     """
     Creates zones, with the option to split zone creation among multiple processes
     :param numzones: Number of zones to create
@@ -213,6 +210,7 @@ def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT, host=HOST):
     print "Generating {0} zones...".format(numzones)
 
     procs = []
+    results = Queue()
     for i in range(numprocs):
         # Delegate zones to proccess
         zones_to_delegate = numzones / numprocs
@@ -220,24 +218,49 @@ def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT, host=HOST):
             zones_to_delegate += numzones % numprocs
 
         # Spawn process
-        p = Process(target=create_zones,
-                    args=(zones_to_delegate, tenant, host))
+        p = Process(target=_create_zones_proc,
+                    args=(zones_to_delegate,),
+                    kwargs={
+                        'queue': results,
+                        'tenant': tenant,
+                        'host': host
+                    })
         procs.append(p)
         p.start()
         if numprocs != 1:
-            print "Spawned process {0}".format(p.pid)
+            print "Process {0} spawned".format(p.pid)
 
     # Wait until processes are finished
-    procs_alive = True
-    while procs_alive:
+    while len(procs) > 0:
         for p in procs:
             if p.is_alive():
                 time.sleep(0.05)
                 break
-        else:
-            procs_alive = False
+            else:
+                if numprocs != 1:
+                    print "Process {0} completed".format(p.pid)
+                procs.remove(p)
 
-    print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
+
+    # Compile and print results
+    newzones = []
+    while not results.empty():
+        newzones.extend(results.get())
+
+    depthcounts = {}
+    for newzone in newzones:
+        depth = _zone_depth(newzone)
+        depthcounts[depth] = depthcounts.get(depth, 0) + 1
+
+    successes = len(newzones)
+    print "\n* Successes: {0} of {1}".format(successes, numzones)
+    print "* Depth Report:"
+    for depth, count in depthcounts.iteritems():
+        print "*   {0} order zones created: {1}".format(
+            _ordinal(depth), count
+        )
+
+    print "* Tenant {0} now has {1} zones\n".format(tenant, get_num_zones(tenant, host))
 
 
 def create_zone(zone_name, zone_email="host@example.com",
@@ -271,8 +294,7 @@ def get_zone_id(zone_name, tenant=TENANT, host=HOST):
     r = requests.get(zone_url, headers=headers)
 
     if r.status_code != 200:
-        print "\n** Error code {0}: {1}".format(
-            r.status_code, r.text)
+        _print_error(r.status_code, r.text)
         return None
 
     zones = r.json()['zones']
@@ -284,12 +306,12 @@ def get_zone_id(zone_name, tenant=TENANT, host=HOST):
     return zone['id']
 
 
-def create_zones(numzones, tenant=TENANT, host=HOST):
+def _create_zones_proc(numzones, queue=None, tenant=TENANT, host=HOST):
     """
-    Normal zone creation function
+    Individual zone creation process
     :param numzones: Number of zones to create
+    :param queue: Optional queue to place results in
     """
-    # Function for individual create_zones process
     zone_url, headers = _get_request_data("/v2/zones",
                                           tenant=tenant,
                                           host=host)
@@ -297,20 +319,23 @@ def create_zones(numzones, tenant=TENANT, host=HOST):
     # Retrieve list of existing zones
     r = requests.get(zone_url, headers=headers)
     if r.status_code != 200:
-        print "\n** Error code {0}: {1}".format(
-            r.status_code, r.text)
+        _print_error(r.status_code, r.text)
         return
     j = r.json()
+
     zones = set()
     for oldzone in [zone['name'] for zone in j['zones']]:
         zones.add(oldzone)
 
-    depthcounts = {}
+    newzones = []
 
     # Generate new zone name
     # Add PID so multiple processes can add zones w/o collisions
     # Add Tenant ID so multiple tenants can add zones w/o collisions
     for zonenum in range(numzones):
+        sys.stdout.write("\rCreating zone {0} of {1}".format(zonenum+1, numzones))
+        sys.stdout.flush()
+
         newzone = "{0}-{1}-{2}.{3}".format(
             random.choice(words),
             os.getpid(),
@@ -327,26 +352,16 @@ def create_zones(numzones, tenant=TENANT, host=HOST):
 
         # Check response
         if r.status_code != 201:
-            print "\n** Error code {0}: {1}".format(
-                r.status_code, r.text)
+            _print_error(r.status_code, r.text)
             continue
 
+        # Store successfully created zone
         zones.add(newzone)
+        newzones.append(newzone)
 
-        # Log successfully created zone
-        depth = _zone_depth(newzone)
-        depthcounts[depth] = depthcounts.get(depth, 0) + 1
-        sys.stdout.write("\rCreated zone {0} of {1}".format(zonenum+1, numzones))
-        sys.stdout.flush()
-
-    successes = sum([v for v in depthcounts.values()])
-    print "\n\n*** Process {0}: Zone creation successful ***".format(os.getpid())
-    print "* Successes: {0} of {1}".format(successes, numzones)
-    print "* Depth Report:"
-    for depth, count in depthcounts.iteritems():
-        print "* - {0} order zones created: {1}".format(
-            _ordinal(depth), count
-        )
+    print ""
+    if queue:
+        queue.put(newzones, block=True)
 
 
 def _get_request_data(url="", host=HOST, tenant=TENANT):
@@ -368,6 +383,13 @@ def _get_request_data(url="", host=HOST, tenant=TENANT):
     return full_url, headers
 
 
+def _print_error(errcode, message=None):
+    print "\nERROR {0}{1}{2}".format(
+        errcode,
+        ": " if message else "",
+        message)
+
+
 def _zone_depth(zonename):
     return zonename.count(".")
 
@@ -376,4 +398,3 @@ def _ordinal(num):
     return "%d%s" % (num, "tsnrhtdd"[((num / 10 % 10) != 1) *
                                      ((num % 10) < 4) *
                                      num % 10::4])
-
