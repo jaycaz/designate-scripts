@@ -199,11 +199,9 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
         _create_zones_proc(num, tenant=tenant, host=host)
 
 
-# Creates a certain number of randomly named zones/subzones
-# Supports multiple processes which operate in their own namespace
 def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
     """
-    Creates zones, with the option to split zone creation among multiple processes
+    Creates random zones, with the option to split zone creation among multiple processes
     :param numzones: Number of zones to create
     :param numprocs: Number of processes to spawn for zone creation
     """
@@ -211,6 +209,7 @@ def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
 
     procs = []
     results = Queue()
+    newzones = []
     for i in range(numprocs):
         # Delegate zones to proccess
         zones_to_delegate = numzones / numprocs
@@ -231,6 +230,7 @@ def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
             print "Process {0} spawned".format(p.pid)
 
     # Wait until processes are finished
+    successes = 0
     while len(procs) > 0:
         for p in procs:
             if p.is_alive():
@@ -238,14 +238,19 @@ def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
                 break
             else:
                 if numprocs != 1:
-                    print "Process {0} completed".format(p.pid)
+                    print "\nProcess {0} completed".format(p.pid),
                 procs.remove(p)
-
+        while not results.empty():
+            newzones.append(results.get(block=True))
+            successes += 1
+            sys.stdout.write("\rCreated zone {0} of {1}".format(
+                successes, numzones))
+            sys.stdout.flush()
+    print ""
 
     # Compile and print results
-    newzones = []
     while not results.empty():
-        newzones.extend(results.get())
+        newzones.append(results.get())
 
     depthcounts = {}
     for newzone in newzones:
@@ -333,9 +338,6 @@ def _create_zones_proc(numzones, queue=None, tenant=TENANT, host=HOST):
     # Add PID so multiple processes can add zones w/o collisions
     # Add Tenant ID so multiple tenants can add zones w/o collisions
     for zonenum in range(numzones):
-        sys.stdout.write("\rCreating zone {0} of {1}".format(zonenum+1, numzones))
-        sys.stdout.flush()
-
         newzone = "{0}-{1}-{2}.{3}".format(
             random.choice(words),
             os.getpid(),
@@ -355,13 +357,10 @@ def _create_zones_proc(numzones, queue=None, tenant=TENANT, host=HOST):
             _print_error(r.status_code, r.text)
             continue
 
-        # Store successfully created zone
+        # Log successful zone creation
         zones.add(newzone)
-        newzones.append(newzone)
-
-    print ""
-    if queue:
-        queue.put(newzones, block=True)
+        if queue:
+            queue.put(newzone, block=True)
 
 
 def _get_request_data(url="", host=HOST, tenant=TENANT):
