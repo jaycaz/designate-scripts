@@ -140,23 +140,3 @@ def _kwargs_as_str(kwargs):
 
     return kwstr
 
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(
-        description="Test the creation of zones")
-
-    parser.add_argument("--host")
-    #parser.add_argument("--numzones", default=10, type=int)
-    parser.add_argument("--numprocs", default=1, type=int)
-    parser.add_argument("--tenant")
-    parser.add_argument("--zonesnums",
-                        default=[10, 100, 1000, 10000, 100000],
-                        nargs='+')
-
-    args = parser.parse_args()
-
-    print vars(args)
-
-    run_create_tests(test_create_zones, **vars(args))
-
-
