@@ -44,9 +44,13 @@ words = ['adult', 'aeroplane', 'air', 'airforce', 'airport', 'album', 'alphabet'
          'tongue', 'torch', 'torpedo', 'train', 'treadmill', 'triangle', 'tunnel',
          'typewriter', 'umbrella', 'vacuum', 'vampire', 'videotape', 'vulture', 'water',
          'weapon', 'web', 'wheelchair', 'window', 'woman', 'worm']
-TENANTS = range(50)
+TENANTS = [str(n) for n in range(50)]
 
 def create_server(servername="ns.servers.com.", host=HOST):
+    """
+    Creates nameserver on host.
+    :param servername: Name of nameserver to be created
+    """
     server_url, headers = _get_request_data("/v1/servers",
                                             tenant="",
                                             host=host)
@@ -65,6 +69,10 @@ def create_server(servername="ns.servers.com.", host=HOST):
 
 
 def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
+    """
+    Changes quota for specified tenant on host
+    :param newquota: New maximum number of zones the tenant should have
+    """
     quota_url, headers = _get_request_data("/v2/quotas/{0}".format(tenant),
                                            tenant=tenant,
                                            host=host)
@@ -84,6 +92,9 @@ def change_zones_quota(newquota, tenant=TENANT_ID, host=HOST):
         return
 
 def get_num_zones(tenant=TENANT_ID, host=HOST):
+    """
+    Retrieves the number of zones for a given tenant
+    """
     zone_url, headers = _get_request_data("/v1/reports/counts",
                                           tenant=tenant,
                                           host=host)
@@ -99,15 +110,20 @@ def get_num_zones(tenant=TENANT_ID, host=HOST):
 
     return numzones
 
-# Deletes all zones for tenants in tenants list
 def delete_zones_multitenant(tenants=TENANTS, host=HOST):
+    """
+    Deletes all zones for the given list of tenants
+    """
     for tenant in tenants:
         if get_num_zones(tenant, host=host) != 0:
             delete_zones(tenant=tenant, host=host)
 
 
-# Deletes a certain number of zones, or all zones
-def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
+def delete_zones(numdelete=None, tenant=TENANT_ID, host=HOST):
+    """
+    Deletes a number of zones, or all zones, for a specified tenant.
+    :param numdelete: number of zones to delete. If omitted, deletes all zones.
+    """
     zone_url, headers = _get_request_data("/v2/zones",
                                           tenant=tenant,
                                           host=host)
@@ -149,16 +165,23 @@ def delete_zones(numdelete=None, numprocs=1, tenant=TENANT_ID, host=HOST):
     print "> Tenant {0} now has {1} zones".format(
         tenant, get_num_zones(tenant, host))
 
-# Deletes a specific zone
 def delete_zone(zoneid, tenant=TENANT_ID, host=HOST):
+    """
+    Deletes a specific zone under the given tenant
+    :param zoneid: ID of the zone to be deleted
+    """
     zone_url, headers = _get_request_data("/v2/zones/{0}".format(zoneid),
                                           tenant=tenant,
                                           host=host)
     r = requests.delete(zone_url, headers=headers)
     return r
 
-# Create zones, randomly distributed among a list of tenant IDs
 def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
+    """
+    # Creates zones, randomly distributed among a list of tenant IDs
+    :param numzones: Number of zones to create
+    :param tenants: List of tenants to distribute zones to
+    """
     tenantcounts = {}
     for i in range(numzones):
         randtenant = random.choice(tenants)
@@ -169,13 +192,18 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
 
     print "Creating zones for tenants..."
     for tenant, num in tenantcounts.iteritems():
-        print "Tenant '{0}': {1} zones".format(tenant, num)
+        print "Tenant '{0}': creating {1} zones".format(tenant, num)
         create_zones(num, tenant=tenant, host=host)
 
 
 # Creates a certain number of randomly named zones/subzones
 # Supports multiple processes which operate in their own namespace
 def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
+    """
+    Creates zones, with the option to split zone creation among multiple processes
+    :param numzones: Number of zones to create
+    :param numprocs: Number of processes to spawn for zone creation
+    """
     print "Generating {0} zones...".format(numzones)
 
     procs = []
@@ -205,9 +233,13 @@ def create_zones_multiproc(numzones, numprocs=1, tenant=TENANT_ID, host=HOST):
 
     print "* Tenant {0} now has {1} zones".format(tenant, get_num_zones(tenant, host))
 
-# Create specific zone
 def create_zone(zone_name, zone_email="host@example.com",
                 tenant=TENANT_ID, host=HOST):
+    """
+    Create a zone with the specified zone name
+    :param zone_name: Name of zone to create
+    :param zone_email: Zone's admin email
+    """
     zone_url, headers = _get_request_data("/v2/zones",
                                           tenant=tenant,
                                           host=host)
@@ -221,6 +253,10 @@ def create_zone(zone_name, zone_email="host@example.com",
     return r
 
 def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
+    """
+    Retrieve ID for the zone with the specified name
+    :param zone_name: Name of zone to search for
+    """
     zone_url, headers = _get_request_data("/v2/zones?name={0}".format(zone_name),
                                           tenant=tenant,
                                           host=host)
@@ -240,8 +276,12 @@ def get_zone_id(zone_name, tenant=TENANT_ID, host=HOST):
     return zone['id']
 
 
-# Function for individual create_zones process
 def create_zones(numzones, tenant=TENANT_ID, host=HOST):
+    """
+    Normal zone creation function
+    :param numzones: Number of zones to create
+    """
+    # Function for individual create_zones process
     zone_url, headers = _get_request_data("/v2/zones",
                                           tenant=tenant,
                                           host=host)
@@ -302,6 +342,12 @@ def create_zones(numzones, tenant=TENANT_ID, host=HOST):
         )
 
 def _get_request_data(url="", host=HOST, tenant=TENANT_ID):
+    """
+    Retrieve the necessary data for making request calls
+    :param url: Everything after the port number.
+    Combined with the host to form the full URL.
+    :return: Tuple with the full request URL, followed by the HTTP headers
+    """
     full_url = "{0}{1}".format(host, url)
 
     headers = {

@@ -8,6 +8,12 @@ import timeit as t
 import zones as z
 
 def run_create_tests(zonesnums, **kwargs):
+    """
+    Runs test_create_zones with a list of zone numbers
+
+    :param zonesnums: List of zone numbers to run tests for
+    :return: Dict mapping number of zones tested to elapsed test time
+    """
     print "*** RUNNING CREATE TEST WITH AMOUNTS {0}... ***".format(zonesnums)
     z.delete_zones(**kwargs)
     results = {}
@@ -21,20 +27,29 @@ def run_create_tests(zonesnums, **kwargs):
     for numzones, time in results.iteritems():
         print " - {0} zones: {1}s".format(numzones, time)
 
-# Creates <numzones> zones and returns the total creation time
+    return results
+
 def test_create_zones(numzones, **kwargs):
+    """
+    Calculates the amount of time to create a number of zones
+
+    :param numzones: Number of zones to create
+    :return: Test runtime, in seconds
+    """
+
     setup = "import zones as z"
     func = "z.create_zones({0}, {1})".format(
         numzones, _kwargs_as_str(kwargs))
-    #func = "z.create_zones({0}{1}{2}{3})".format(
-    #    numzones,
-    #    (", numprocs={0}".format(kwargs['numprocs']) if 'numprocs' in kwargs else ""),
-    #    (", tenant={0}".format(kwargs['tenant']) if 'tenant' in kwargs else ""),
-    #    (", host='{0}'".format(kwargs['host']) if 'host' in kwargs else ""))
     timer = t.Timer(func, setup)
     return timer.timeit(number=1)
 
 def run_create_another_tests(zonesnums, **kwargs):
+    """
+    Runs test_create_another_zone with a list of zone numbers
+
+    :param zonesnums: List of zone numbers to run tests for
+    :return: Dict mapping number of zones tested to elapsed test time
+    """
     print "*** RUNNING CREATE_ANOTHER TEST WITH AMOUNTS {0}... ***".\
         format(zonesnums)
     results = {}
@@ -51,9 +66,15 @@ def run_create_another_tests(zonesnums, **kwargs):
     return results
 
 
-# Creates <basezones> zones as a base, then
-# times the creation of an additional zone
 def test_create_another_zone(basezones=None, numtests=100, **kwargs):
+    """
+    Creates <basezones> zones as a base, then times the creation
+    of an additional zone
+
+    :param basezones: Number of zones to be created as a base
+    :param numtests: Number of times to run test
+    :return: List of elapsed time for each test
+    """
     curr_num_zones = z.get_num_zones(**kwargs)
     if basezones is None:
         basezones = curr_num_zones
@@ -94,6 +115,9 @@ def test_create_another_zone(basezones=None, numtests=100, **kwargs):
     return times
 
 def time_stats(times):
+    """
+    Given list of test times, prints useful information
+    """
     timestr = ""
 
     # Print statistics
@@ -108,7 +132,9 @@ def time_stats(times):
     return timestr
 
 def _kwargs_as_str(kwargs):
-    # Inject kwargs key-value pairs in func string
+    """
+    Inject kwargs key-value pairs in string form, to create func strings
+    """
     kwstr = ', '.join("{0}={1}".format(key, repr(value)) for
                       key,value in kwargs.iteritems())
 
