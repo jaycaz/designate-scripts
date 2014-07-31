@@ -6,6 +6,7 @@
 import json
 from multiprocessing import Process
 from multiprocessing import Queue
+from Queue import Empty as QueueEmpty
 import os
 import random
 import sys
@@ -162,6 +163,8 @@ def delete_zones(numdelete=None, tenant=TENANT, host=HOST):
         else:
             _print_error(r.status_code, r.text)
 
+    print ""
+
     print "* Successes: {0} out of {1}".format(successes, numdelete)
     print "* Tenant {0} now has {1} zones\n".format(
         tenant, get_num_zones(tenant, host))
@@ -179,12 +182,18 @@ def delete_zone(zoneid, tenant=TENANT, host=HOST):
     return r
 
 
-def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
+def create_zones_multitenant(numzones, numprocs=1, tenants=TENANTS, host=HOST):
     """
     # Creates zones, randomly distributed among a list of tenant IDs
     :param numzones: Number of zones to create
     :param tenants: List of tenants to distribute zones to
     """
+
+    print "Distributing {0} zones among {1} tenants...".format(
+        numzones, len(tenants)
+    )
+
+    # Randomly distribute zones among tenants
     tenantcounts = {}
     for i in range(numzones):
         randtenant = random.choice(tenants)
@@ -193,10 +202,67 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
         else:
             tenantcounts[randtenant] = 1
 
-    print "Creating zones for tenants..."
-    for tenant, num in sorted(tenantcounts.items()):
-        print "Tenant '{0}': creating {1} zones".format(tenant, num)
-        create_zones(num, tenant=tenant, host=host)
+    # Create queue of tenants and spawn processes to process queue
+    tenantqueue = Queue()
+    for tenantcount in sorted(tenantcounts.iteritems()):
+        tenantqueue.put(tenantcount)
+
+    newzones = []
+    procs = []
+    results = Queue()
+
+    if numprocs != 1:
+        print "Starting {0} processes...".format(numprocs)
+
+    for i in range(numprocs):
+        # TODO: Pass in existing zones to oldzonequeue
+        p = Process(target=_create_zones_proc,
+                    args=(None,),
+                    kwargs={
+                        'newzonequeue': results,
+                        'tenantqueue': tenantqueue,
+                        'host': host
+                    })
+        procs.append(p)
+        p.start()
+        if numprocs != 1:
+            print "Process {0} spawned".format(p.pid)
+
+    # Check on queue status
+    # TODO: Find out a way to output number of tenants completed
+    successes = 0
+    while len(procs) > 0:
+        for p in procs:
+            if p.is_alive():
+                time.sleep(0.05)
+                break
+            else:
+                if numprocs != 1:
+                    print "\nProcess {0} completed".format(p.pid),
+                procs.remove(p)
+        while not results.empty():
+            newzones.append(results.get(block=True))
+            successes += 1
+            sys.stdout.write("\rCreated zone {0} of {1}".format(
+                successes, numzones))
+            sys.stdout.flush()
+    print ""
+
+    # Compile and print results
+    while not results.empty():
+        newzones.append(results.get())
+
+    depthcounts = {}
+    for newzone in newzones:
+        depth = _zone_depth(newzone)
+        depthcounts[depth] = depthcounts.get(depth, 0) + 1
+
+    print "\n* Successes: {0} of {1}".format(successes, numzones)
+    print "* Depth Report:"
+    for depth, count in depthcounts.iteritems():
+        print "*   {0} order zones created: {1}".format(
+            _ordinal(depth), count
+        )
 
 
 def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
@@ -205,8 +271,6 @@ def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
     :param numzones: Number of zones to create
     :param numprocs: Number of processes to spawn for zone creation
     """
-    print "Generating {0} zones...".format(numzones)
-
     procs = []
     results = Queue()
     newzones = []
@@ -217,10 +281,11 @@ def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
             zones_to_delegate += numzones % numprocs
 
         # Spawn process
+        # TODO: Pass in existing zones to oldzonequeue
         p = Process(target=_create_zones_proc,
                     args=(zones_to_delegate,),
                     kwargs={
-                        'queue': results,
+                        'newzonequeue': results,
                         'tenant': tenant,
                         'host': host
                     })
@@ -311,59 +376,69 @@ def get_zone_id(zone_name, tenant=TENANT, host=HOST):
     return zone['id']
 
 
-def _create_zones_proc(numzones, queue=None, tenant=TENANT, host=HOST):
+def _create_zones_proc(numzones, newzonequeue=None, oldzones=None, tenantqueue=None, tenant=TENANT, host=HOST):
     """
     Individual zone creation process
-    :param numzones: Number of zones to create
-    :param queue: Optional queue to place results in
+
+    :param numzones: Number of zones to create. Ignored if tenantqueue is not None
+    :param newzones: (optional) Shared queue for putting created zones into
+    :param oldzones: (optional) List of zones that already exist. May help avoid name collisions.
+    :param tenantqueue: (optional) Shared queue of (tenant, numzone) pairs. Will override numzones and tenants.
+    :param tenants: Tenant ID to create zones for. Ignored if tenantqueue is not None
     """
-    zone_url, headers = _get_request_data("/v2/zones",
-                                          tenant=tenant,
-                                          host=host)
 
-    # Retrieve list of existing zones
-    r = requests.get(zone_url, headers=headers)
-    if r.status_code != 200:
-        _print_error(r.status_code, r.text)
-        return
-    j = r.json()
+    if not tenantqueue:
+        tenantqueue = Queue()
+        tenantqueue.put((tenant, numzones))
 
-    zones = set()
-    for oldzone in [zone['name'] for zone in j['zones']]:
-        zones.add(oldzone)
+    # Pop tenant and numzones from tenant queue
+    while not tenantqueue.empty():
+        # Get next tenant
+        try:
+            currtenant, currnumzones = tenantqueue.get(block=True, timeout=0.1)
+            print "\nTenant '{0}': Creating {1} zones...".format(
+                currtenant, currnumzones)
+        except QueueEmpty:
+            break
 
-    newzones = []
+        zones = set()
 
-    # Generate new zone name
-    # Add PID so multiple processes can add zones w/o collisions
-    # Add Tenant ID so multiple tenants can add zones w/o collisions
-    for zonenum in range(numzones):
-        newzone = "{0}-{1}-{2}.{3}".format(
-            random.choice(words),
-            os.getpid(),
-            tenant,
-            random.choice(tlds),
-        )
+        if oldzones:
+            for oldzone in oldzones:
+                zones.add(oldzone)
 
-        while newzone in zones:
-            # Collision: make a random subzone of newzone and check again
-            newzone = "{0}.{1}".format(random.choice(words), newzone)
+        # Generate new zone name
+        # Add PID so multiple processes can add zones w/o collisions
+        # Add Tenant ID so multiple tenants can add zones w/o collisions
+        for zonenum in range(currnumzones):
+            newzone = "{0}-{1}-{2}.{3}".format(
+                random.choice(words),
+                os.getpid(),
+                currtenant,
+                random.choice(tlds),
+            )
 
-        # Add zone
-        r = create_zone(newzone, tenant=tenant, host=host)
+            while newzone in zones:
+                # Collision: make a random subzone of newzone and check again
+                newzone = "{0}.{1}".format(random.choice(words), newzone)
 
-        # Check response
-        if r.status_code != 201:
-            _print_error(r.status_code, r.text)
-            continue
+            # Add zone
+            r = create_zone(newzone, tenant=currtenant, host=host)
 
-        # Log successful zone creation
-        zones.add(newzone)
-        if queue:
-            queue.put(newzone, block=True)
+            # Check response
+            if r.status_code != 201:
+                _print_error(r.status_code, r.text)
+                continue
+
+            # Log successful zone creation
+            zones.add(newzone)
+
+            # Add new zones to shared queue
+            if newzonequeue:
+                newzonequeue.put(newzone, block=True)
 
 
-def _get_request_data(url="", host=HOST, tenant=TENANT):
+def _get_request_data(url="", tenant=TENANT, host=HOST):
     """
     Retrieve the necessary data for making request calls
     :param url: Everything after the port number.
