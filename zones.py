@@ -194,9 +194,9 @@ def create_zones_multitenant(numzones, tenants=TENANTS, host=HOST):
             tenantcounts[randtenant] = 1
 
     print "Creating zones for tenants..."
-    for tenant, num in tenantcounts.iteritems():
+    for tenant, num in sorted(tenantcounts.items()):
         print "Tenant '{0}': creating {1} zones".format(tenant, num)
-        _create_zones_proc(num, tenant=tenant, host=host)
+        create_zones(num, tenant=tenant, host=host)
 
 
 def create_zones(numzones, numprocs=1, tenant=TENANT, host=HOST):
