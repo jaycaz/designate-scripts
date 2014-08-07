@@ -49,7 +49,6 @@ TENANTS = [str(n) for n in range(50)]
 TENANT = TENANTS[0]
 HOST = "http://192.168.33.8:9001"
 
-
 def create_server(servername="ns.servers.com.", host=HOST):
     """
     Creates nameserver on host.
@@ -62,6 +61,20 @@ def create_server(servername="ns.servers.com.", host=HOST):
         "name": servername
     }
 
+    # Check that server doesn't already exist
+    r = requests.get(server_url, headers=headers)
+    if r.status_code == 200:
+        servernames = [server['name'] for server in r.json()['servers']]
+        if servername in servernames:
+            print "Server '{0}' already exists.".format(servername)
+            return
+    else:
+        print "Server list retrieval failed."
+        _print_error(r.status_code, r.text)
+        return
+
+
+    # Create server
     r = requests.post(server_url, data=json.dumps(data), headers=headers)
     if r.status_code == 200:
         print "Server {0} successfully created".format(servername)
